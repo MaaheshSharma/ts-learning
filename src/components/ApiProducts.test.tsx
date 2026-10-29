@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   act,
@@ -310,7 +311,7 @@ describe("ApiProducts", () => {
     ).toBeTruthy();
   });
 
-  it("shuffles displayed products on refresh without mutating the original array", async () => {
+  it("shuffles displayed products once after refresh completes without mutating the original array", async () => {
     const user = userEvent.setup();
 
     const products: ApiProduct[] = [
@@ -338,10 +339,19 @@ describe("ApiProducts", () => {
     ];
 
     const originalOrder = products.map((product) => product.title);
+    const refreshedProducts = products.map((product) => ({ ...product }));
+    const refreshRequest = createDeferred<ApiProduct[]>();
 
-    vi.mocked(getProducts).mockResolvedValue(products);
+    vi.mocked(getProducts)
+      .mockResolvedValueOnce(products)
+      .mockResolvedValueOnce(products)
+      .mockReturnValueOnce(refreshRequest.promise);
 
-    render(<ApiProducts />);
+    render(
+      <StrictMode>
+        <ApiProducts />
+      </StrictMode>,
+    );
 
     await screen.findByRole("heading", { name: "Monitor" });
 
@@ -349,6 +359,17 @@ describe("ApiProducts", () => {
     vi.spyOn(Math, "random").mockReturnValueOnce(0).mockReturnValueOnce(0);
 
     await user.click(screen.getByRole("button", { name: "Refresh products" }));
+
+    expect(
+      screen
+        .getAllByRole("heading", { level: 2 })
+        .map((heading) => heading.textContent)
+        .filter((name) => name !== "Cart Preview"),
+    ).toEqual(originalOrder);
+
+    await act(async () => {
+      refreshRequest.resolve(refreshedProducts);
+    });
 
     const displayedProductNames = screen
       .getAllByRole("heading", { level: 2 })

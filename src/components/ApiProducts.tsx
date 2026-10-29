@@ -1,4 +1,4 @@
-import { useEffect, useState, useReducer } from "react";
+import { useEffect, useState, useReducer, useRef } from "react";
 import { useProducts } from "../hooks/useProducts";
 import { cartReducer, initialCartState } from "../reducers/cartReducer";
 import { loadCartState, saveCartState } from "../utils/cartStorage";
@@ -17,22 +17,24 @@ function shuffleArray<T>(items: T[]): T[] {
 function ApiProducts() {
   const { products, loading, error, retry } = useProducts();
   const [displayedProducts, setDisplayedProducts] = useState<ApiProduct[]>([]);
-  const [prevProducts, setPrevProducts] = useState<ApiProduct[]>(products);
-  const [isShuffled, setIsShuffled] = useState(false);
+  const shuffleNextProducts = useRef(false);
   const [cartState, dispatch] = useReducer(
     cartReducer,
     initialCartState,
     loadCartState,
   );
 
-  if (products !== prevProducts) {
-    setPrevProducts(products);
-    setDisplayedProducts(isShuffled ? shuffleArray(products) : products);
-  }
+  useEffect(() => {
+    const nextProducts = shuffleNextProducts.current
+      ? shuffleArray(products)
+      : products;
+
+    shuffleNextProducts.current = false;
+    setDisplayedProducts(nextProducts);
+  }, [products]);
 
   const handleRefresh = () => {
-    setIsShuffled(true);
-    setDisplayedProducts((current) => shuffleArray(current));
+    shuffleNextProducts.current = true;
     retry();
   };
 
